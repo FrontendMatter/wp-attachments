@@ -1,5 +1,6 @@
 <?php namespace Mosaicpro\WP\Plugins\Attachments;
 
+use Mosaicpro\Core\IoC;
 use Mosaicpro\WpCore\CRUD;
 use Mosaicpro\WpCore\MetaBox;
 use Mosaicpro\WpCore\PluginGeneric;
@@ -12,23 +13,38 @@ use Mosaicpro\WpCore\ThickBox;
 class Attachments extends PluginGeneric
 {
     /**
+     * Holds an Attachments instance
+     * @var
+     */
+    protected static $instance;
+
+    /**
      * Holds the post types that have attachments
      * @var array
      */
     protected $post_types = [];
 
     /**
-     * Create a new Attachments instance
+     * Initialize the plugin
      */
-    public function __construct()
+    public static function init()
     {
-        parent::__construct();
+        $instance = self::getInstance();
 
         // i18n
-        $this->loadTextDomain();
+        $instance->loadTextDomain();
 
         // Load Plugin Templates into the current Theme
-        $this->plugin->initPluginTemplates();
+        $instance->plugin->initPluginTemplates();
+
+        // Get the Container from IoC
+        $app = IoC::getContainer();
+
+        // Bind the Attachments to the Container
+        $app->bindShared('attachments', function() use ($instance)
+        {
+            return $instance;
+        });
     }
 
     /**

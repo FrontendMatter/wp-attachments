@@ -63,7 +63,7 @@ module.exports = function(grunt) {
         // Generate i18n POT file
         pot: {
             options:{
-                text_domain: 'mp-lms', // Plugin Text Domain. Produces text-domain.pot
+                text_domain: 'mp-attachments', // Plugin Text Domain. Produces text-domain.pot
                 package_name: '<%= pkg.name %>',
                 package_version: '<%= pkg.version %>',
                 copyright_holder: '<%= pkg.author %>',
@@ -86,7 +86,7 @@ module.exports = function(grunt) {
                 ]
             },
             files:{
-                src:  [ 'library/*.php' ],
+                src:  [ 'library/*.php', 'templates/*.php' ],
                 expand: true
             }
         },
