@@ -1,10 +1,13 @@
 <?php namespace Mosaicpro\WP\Plugins\Attachments;
 
+use Mosaicpro\Button\Button;
 use Mosaicpro\Core\IoC;
 use Mosaicpro\WpCore\CRUD;
 use Mosaicpro\WpCore\MetaBox;
 use Mosaicpro\WpCore\PluginGeneric;
 use Mosaicpro\WpCore\ThickBox;
+use Mosaicpro\WpCore\Utility;
+use ZipArchive;
 
 /**
  * Class Attachments
@@ -37,6 +40,9 @@ class Attachments extends PluginGeneric
         // Load Plugin Templates into the current Theme
         $instance->plugin->initPluginTemplates();
 
+        // Initialize Attachments Widgets
+        $instance->initWidgets();
+
         // Get the Container from IoC
         $app = IoC::getContainer();
 
@@ -59,6 +65,22 @@ class Attachments extends PluginGeneric
         }
 
         return self::$instance;
+    }
+
+    /**
+     * Initialize Attachments Widgets
+     */
+    private function initWidgets()
+    {
+        add_action('widgets_init', function()
+        {
+            $widgets = [ 'Download_Attachments' ];
+            foreach ($widgets as $widget)
+            {
+                require_once realpath(__DIR__) . '/Widgets/' . $widget . '.php';
+                register_widget(__NAMESPACE__ . '\\' . $widget . '_Widget');
+            }
+        });
     }
 
     /**
@@ -162,6 +184,17 @@ class Attachments extends PluginGeneric
     }
 
     /**
+     * Get download URL for all post attachments
+     * @param $post_id
+     * @return string
+     */
+    public function download_post_attachments_url($post_id)
+    {
+        $url = plugins_url( 'mp-attachments/download.php?post_id=' . $post_id);
+        return $url;
+    }
+
+    /**
      * Get all post attachments
      * @param $post_id
      * @return array
@@ -169,11 +202,64 @@ class Attachments extends PluginGeneric
     public function get_post_attachments($post_id)
     {
         $attachments_ids = get_post_meta($post_id, 'attachment');
+        if (empty($attachments_ids)) return false;
         $attachments = get_posts([
             'post_type' => 'attachment',
             'post__in' => $attachments_ids
         ]);
         return $attachments;
+    }
+
+    /**
+     * Download all attachments of a post
+     * @param $post_id
+     * @return bool|void
+     */
+    public function download_post_attachments($post_id)
+    {
+        $attachments = $this->get_post_attachments($post_id);
+        if (!$attachments) return wp_die($this->__('The post has no attachments to download'));
+
+        $uploads = wp_upload_dir();
+        $zip = new ZipArchive();
+        $zip_filename = Utility::str_random() .  '.zip';
+        $zip_filepath = $uploads['basedir'] . '/' . $zip_filename;
+
+        if ($zip->open($zip_filepath, ZipArchive::CREATE) !== true)
+            return wp_die(sprintf( $this->__('cannot open <%1$s> zip file'), $zip_filepath ));
+
+        foreach($attachments as $attachment)
+        {
+            $attachment = get_post_meta($attachment->ID, '_wp_attached_file', true);
+            $attachment_filepath = $uploads['basedir'] . '/' . $attachment;
+            $attachment_filename = $attachment;
+
+            // no directory names
+            if (($position = strrpos($attachment_filename, '/', 0)) !== false)
+                $attachment_filename = substr($attachment_filename, $position + 1);
+
+            $zip->addFile($attachment_filepath, $attachment_filename);
+        }
+
+        // close the archive
+        $zip->close();
+
+        // download the archive
+        $download = $this->download_file($zip_filename, $zip_filepath);
+
+        // remove the archive
+        unlink($zip_filepath);
+
+        // stop if the download failed
+        if ($download === false) return false;
+
+        // update attachments download count
+        foreach($attachments as $attachment)
+        {
+            update_post_meta($attachment->ID,
+                '_mp_attachment_downloads',
+                (int) get_post_meta($attachment->ID, '_mp_attachment_downloads', true) + 1);
+        }
     }
 
     /**
@@ -187,18 +273,35 @@ class Attachments extends PluginGeneric
 
         $uploads = wp_upload_dir();
         $attachment = get_post_meta($attachment_id, '_wp_attached_file', true);
-        $filepath = $uploads['basedir'] . '/' . $attachment;
 
+        $filepath = $uploads['basedir'] . '/' . $attachment;
+        $filename = $attachment;
+
+        $download = $this->download_file($filename, $filepath);
+        if ($download === false) return false;
+
+        update_post_meta($attachment_id, '_mp_attachment_downloads', (int) get_post_meta($attachment_id, '_mp_attachment_downloads', true) + 1);
+
+        exit;
+    }
+
+    /**
+     * Start force download of a file
+     * @param $filename
+     * @param $filepath
+     * @return bool
+     */
+    private function download_file($filename, $filepath)
+    {
         if(!file_exists($filepath) || !is_readable($filepath))
             return false;
 
-        $filename = $attachment;
-
         // no directory names
-        if (($position = strrpos($attachment, '/', 0)) !== false)
-            $filename = substr($attachment, $position + 1);
+        if (($position = strrpos($filename, '/', 0)) !== false)
+            $filename = substr($filename, $position + 1);
 
-        if (ini_get('zlib.output_compression')) ini_set('zlib.output_compression', 'Off');
+        if (ini_get('zlib.output_compression'))
+            ini_set('zlib.output_compression', 'Off');
 
         header('Content-Type: application/download');
         header('Content-Disposition: attachment; filename=' . rawurldecode($filename));
@@ -220,9 +323,24 @@ class Attachments extends PluginGeneric
             fclose($filepath);
         }
         else return false;
+    }
 
-        update_post_meta($attachment_id, '_mp_attachment_downloads', (int) get_post_meta($attachment_id, '_mp_attachment_downloads', true) + 1);
+    /**
+     * Get a list of download attachment links
+     * @param $attachments
+     * @param string $separator
+     * @param string $before
+     * @param string $after
+     * @return string
+     */
+    public function get_download_attachments_list($attachments, $separator = '<br/>', $before = '', $after = '')
+    {
+        $output = [];
+        foreach ($attachments as $attachment)
+            $output[] = Button::success($this->__('Download') . ' ' . $attachment->post_title)
+                    ->addUrl($this->download_attachment_url($attachment->ID))
+                    ->isLink();
 
-        exit;
+        return $before . implode($separator, $output) . $after;
     }
 }
