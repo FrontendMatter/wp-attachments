@@ -121,7 +121,7 @@ class Download_Attachments_Widget extends WP_Widget
         extract($args);
         extract($instance);
 
-        $post_id = get_the_ID();
+        if (!isset($post_id) || !$post_id) $post_id = get_the_ID();
         $type = isset($type) ? $type : 'list';
 
         $mp_attachments = Attachments::getInstance();

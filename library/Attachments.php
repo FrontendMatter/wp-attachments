@@ -43,6 +43,9 @@ class Attachments extends PluginGeneric
         // Initialize Attachments Widgets
         $instance->initWidgets();
 
+        // Initialize Attachments Shortcodes
+        $instance->initShortcodes();
+
         // Get the Container from IoC
         $app = IoC::getContainer();
 
@@ -79,6 +82,22 @@ class Attachments extends PluginGeneric
             {
                 require_once realpath(__DIR__) . '/Widgets/' . $widget . '.php';
                 register_widget(__NAMESPACE__ . '\\' . $widget . '_Widget');
+            }
+        });
+    }
+
+    /**
+     * Initialize Attachments Shortcodes
+     */
+    private function initShortcodes()
+    {
+        add_action('init', function()
+        {
+            $shortcodes = [ 'Download_Attachments' ];
+            foreach ($shortcodes as $sc)
+            {
+                require_once realpath(__DIR__) . '/Shortcodes/' . $sc . '.php';
+                forward_static_call([__NAMESPACE__ . '\\' . $sc . '_Shortcode', 'init']);
             }
         });
     }
