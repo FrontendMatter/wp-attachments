@@ -1,6 +1,6 @@
 <?php namespace Mosaicpro\WP\Plugins\Attachments;
 
-use Mosaicpro\Button\Button;
+use Mosaicpro\HtmlGenerators\Button\Button;
 use Mosaicpro\WpCore\Utility;
 use WP_Widget;
 

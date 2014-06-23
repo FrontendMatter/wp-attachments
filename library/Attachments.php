@@ -1,7 +1,7 @@
 <?php namespace Mosaicpro\WP\Plugins\Attachments;
 
-use Mosaicpro\Button\Button;
-use Mosaicpro\Core\IoC;
+use Mosaicpro\HtmlGenerators\Button\Button;
+use Mosaicpro\HtmlGenerators\Core\IoC;
 use Mosaicpro\WpCore\CRUD;
 use Mosaicpro\WpCore\MetaBox;
 use Mosaicpro\WpCore\PluginGeneric;
